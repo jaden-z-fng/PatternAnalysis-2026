@@ -17,3 +17,14 @@ class DoubleConv(nn.Module):
  
     def forward(self, x):
         return self.block(x)
+
+
+class Down(nn.Module):
+    """Downsample (maxpool) then DoubleConv."""
+ 
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.pool_conv = nn.Sequential(nn.MaxPool2d(2), DoubleConv(in_ch, out_ch))
+ 
+    def forward(self, x):
+        return self.pool_conv(x)
