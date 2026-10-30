@@ -37,7 +37,7 @@ def train_one_epoch(model, loader, criterion, optimizer):
     model.train()
     total = 0.0
     for images, masks in loader:
-        images, masks = images.to(DEVICE), masks.to(DEVICE)
+        images, masks = images.to(DEVICE), to_one_hot(masks.to(DEVICE))
         optimizer.zero_grad()
         loss = criterion(model(images), masks)
         loss.backward()
@@ -51,7 +51,7 @@ def evaluate(model, loader, criterion):
     model.eval()
     total = 0.0
     for images, masks in loader:
-        images, masks = images.to(DEVICE), masks.to(DEVICE)
+        images, masks = images.to(DEVICE), to_one_hot(masks.to(DEVICE))
         logits = model(images)
         total += criterion(logits, masks).item() * images.size(0)
     return total / len(loader.dataset),
