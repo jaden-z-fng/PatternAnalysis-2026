@@ -16,6 +16,29 @@ def to_one_hot(masks):
     """[B, H, W] integer labels -> [B, C, H, W] one-hot floats."""
     return torch.nn.functional.one_hot(masks.long(), NUM_CLASSES).permute(0, 3, 1, 2).float()
 
+@torch.no_grad()
+def update_counts(logits, target, counts):
+    """Accumulate per-class intersection / pred / target pixel counts."""
+    pred = torch.nn.functional.one_hot(
+        logits.argmax(dim=1), NUM_CLASSES).permute(0, 3, 1, 2).float()
+    dims = (0, 2, 3)
+    counts["inter"] += (pred * target).sum(dims)
+    counts["pred"] += pred.sum(dims)
+    counts["target"] += target.sum(dims)
+
+
+def dice_iou_from_counts(counts, eps=1e-6):
+    inter, p, t = counts["inter"], counts["pred"], counts["target"]
+    dice = (2 * inter + eps) / (p + t + eps)
+    iou = (inter + eps) / (p + t - inter + eps)
+    return dice, iou
+
+
+def new_counts():
+    z = lambda: torch.zeros(NUM_CLASSES, device=DEVICE)
+    return {"inter": z(), "pred": z(), "target": z()}
+
+
 class DiceLoss(torch.nn.Module):
     """Soft Dice loss only (no cross-entropy). Expects logits [B,C,H,W]
     and one-hot targets [B,C,H,W]."""
@@ -49,12 +72,14 @@ def train_one_epoch(model, loader, criterion, optimizer):
 @torch.no_grad()
 def evaluate(model, loader, criterion):
     model.eval()
-    total = 0.0
+    total, counts = 0.0, new_counts()
     for images, masks in loader:
         images, masks = images.to(DEVICE), to_one_hot(masks.to(DEVICE))
         logits = model(images)
         total += criterion(logits, masks).item() * images.size(0)
-    return total / len(loader.dataset),
+        update_counts(logits, masks, counts)
+    dice, iou = dice_iou_from_counts(counts)
+    return total / len(loader.dataset), dice, iou
 
 def main():
     train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
