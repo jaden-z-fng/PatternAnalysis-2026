@@ -20,6 +20,7 @@ def center_crop_to_shape(arr, target_shape=TARGET_SHAPE):
     c0 = crop_c // 2
     return arr[r0 : r0 + target_shape[0], c0 : c0 + target_shape[1]]
 
+
 def load_nifti_2d(path, norm_image=False, dtype=np.float32):
     """Load one 2D slice from a .nii.gz file (same handling as load_data_2D)."""
     img = nib.load(path).get_fdata(caching="unchanged")
