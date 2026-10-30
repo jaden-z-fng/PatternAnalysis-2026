@@ -7,6 +7,18 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
+TARGET_SHAPE = (256, 128)
+
+
+def center_crop_to_shape(arr, target_shape=TARGET_SHAPE):
+    """Centre-crop a 2D array down to target_shape."""
+    crop_r = arr.shape[0] - target_shape[0]
+    crop_c = arr.shape[1] - target_shape[1]
+    if crop_r < 0 or crop_c < 0:
+        raise ValueError(f"Slice {arr.shape} is smaller than target {target_shape}")
+    r0 = crop_r // 2
+    c0 = crop_c // 2
+    return arr[r0 : r0 + target_shape[0], c0 : c0 + target_shape[1]]
 
 def load_nifti_2d(path, norm_image=False, dtype=np.float32):
     """Load one 2D slice from a .nii.gz file (same handling as load_data_2D)."""
@@ -16,6 +28,8 @@ def load_nifti_2d(path, norm_image=False, dtype=np.float32):
         img = img[:, :, 0]  # remove extra dimension in HipMRI slices
 
     img = img.astype(dtype)
+
+    img = center_crop_to_shape(img.astype(dtype))
 
     if norm_image:
         img = (img - img.mean()) / (img.std() + 1e-8)
