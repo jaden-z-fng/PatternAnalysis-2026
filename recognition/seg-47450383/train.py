@@ -26,3 +26,27 @@ class DiceLoss(torch.nn.Module):
         denom = probs.sum(dims) + target.sum(dims)
         dice = (2 * inter + self.eps) / (denom + self.eps)  # per class
         return 1 - dice.mean()
+
+# ---------------- train / eval loops ----------------
+def train_one_epoch(model, loader, criterion, optimizer):
+    model.train()
+    total = 0.0
+    for images, masks in loader:
+        images, masks = images.to(DEVICE), masks.to(DEVICE)
+        optimizer.zero_grad()
+        loss = criterion(model(images), masks)
+        loss.backward()
+        optimizer.step()
+        total += loss.item() * images.size(0)
+    return total / len(loader.dataset)
+
+
+@torch.no_grad()
+def evaluate(model, loader, criterion):
+    model.eval()
+    total = 0.0
+    for images, masks in loader:
+        images, masks = images.to(DEVICE), masks.to(DEVICE)
+        logits = model(images)
+        total += criterion(logits, masks).item() * images.size(0)
+    return total / len(loader.dataset),
