@@ -40,21 +40,24 @@ def new_counts():
     return {"inter": z(), "pred": z(), "target": z()}
 
 
-class DiceLoss(torch.nn.Module):
-    """Soft Dice loss only (no cross-entropy). Expects logits [B,C,H,W]
-    and one-hot targets [B,C,H,W]."""
-
-    def __init__(self, eps=1e-6):
+class DiceCELoss(torch.nn.Module):
+    def __init__(self, ce_weight=0.5, eps=1e-6):
         super().__init__()
+        self.ce_weight = ce_weight
         self.eps = eps
 
     def forward(self, logits, target):
+        # Dice part
         probs = torch.softmax(logits, dim=1)
-        dims = (0, 2, 3)  # sum over batch + spatial, keep classes separate
+        dims = (0, 2, 3)
         inter = (probs * target).sum(dims)
         denom = probs.sum(dims) + target.sum(dims)
-        dice = (2 * inter + self.eps) / (denom + self.eps)  # per class
-        return 1 - dice.mean()
+        dice_loss = 1 - ((2 * inter + self.eps) / (denom + self.eps)).mean()
+
+        # Cross-entropy part (accepts one-hot float targets)
+        ce_loss = torch.nn.functional.cross_entropy(logits, target)
+
+        return (1 - self.ce_weight) * dice_loss + self.ce_weight * ce_loss
 
 
 def train_one_epoch(model, loader, criterion, optimizer):
