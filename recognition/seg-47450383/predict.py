@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from modules import UNet2D               
 from dataset import HipMRIDataset
 
-EST_IMG_DIR = "keras_slices_test"
+TEST_IMG_DIR = "keras_slices_test"
 TEST_SEG_DIR = "keras_slices_seg_test"
 WEIGHTS_PATH = "unet2d.pth"
 OUT_DIR = "predictions"
