@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
 
-def load_nifti_2d(path, dtype=np.float32):
+def load_nifti_2d(path, norm_image=False, dtype=np.float32):
     """Load one 2D slice from a .nii.gz file (same handling as load_data_2D)."""
     img = nib.load(path).get_fdata(caching="unchanged")
 
@@ -16,6 +16,9 @@ def load_nifti_2d(path, dtype=np.float32):
         img = img[:, :, 0]  # remove extra dimension in HipMRI slices
 
     img = img.astype(dtype)
+
+    if norm_image:
+        img = (img - img.mean()) / (img.std() + 1e-8)
 
     return img
 
@@ -69,7 +72,8 @@ class HipMRIDataset(Dataset):
         self.masks = np.zeros((n, rows, cols), dtype=np.int64)
 
         for i in tqdm(range(n), desc=f"Loading {split}"):
-            self.images[i] = load_nifti_2d(image_paths[i])
+            self.images[i] = load_nifti_2d(image_paths[i], norm_image=norm_image)
+            # Masks are label maps: no normalisation, round to integer classes
             self.masks[i] = np.rint(load_nifti_2d(mask_paths[i])).astype(np.int64)
 
     def __len__(self):
