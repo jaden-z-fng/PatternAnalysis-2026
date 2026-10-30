@@ -1,5 +1,6 @@
 import torch
 import time
+import matplotlib.pyplot as plt
 
 from modules import UNet2D           # your model
 from dataset import get_dataloaders
@@ -81,6 +82,19 @@ def evaluate(model, loader, criterion):
     dice, iou = dice_iou_from_counts(counts)
     return total / len(loader.dataset), dice, iou
 
+def plot_history(history):
+    epochs = range(1, len(history["train_loss"]) + 1)
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4))
+    ax[0].plot(epochs, history["train_loss"], label="train")
+    ax[0].plot(epochs, history["val_loss"], label="val")
+    ax[0].set_title("Dice loss"); ax[0].set_xlabel("epoch"); ax[0].legend()
+    ax[1].plot(epochs, history["val_dice"], label="val mean Dice")
+    ax[1].plot(epochs, history["val_iou"], label="val mean IoU")
+    ax[1].set_title("Validation metrics"); ax[1].set_xlabel("epoch"); ax[1].legend()
+    plt.tight_layout()
+    plt.savefig("training_curves.png", dpi=150)
+    plt.close()
+
 def main():
     train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
@@ -115,4 +129,6 @@ def main():
     print(f"Training time: {(time.time() - start) / 60:.1f} min")
     if DEVICE.type == "cuda":
         print(f"Peak GPU VRAM: {torch.cuda.max_memory_allocated() / 1024**2:.0f} MB")
+
+    plot_history(history)
 
