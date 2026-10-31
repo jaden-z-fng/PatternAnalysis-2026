@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import InterpolationMode
-import torch.nn.functional as F
+import torchvision.transforms.functional as TF
 
 TARGET_SHAPE = (256, 128)
 
@@ -37,9 +37,9 @@ def augment(image, mask):
     # Small rotation (same angle for both)
     if random.random() < 0.5:
         angle = random.uniform(-10, 10)
-        image = F.rotate(image, angle, interpolation=InterpolationMode.BILINEAR,
+        image = TF.rotate(image, angle, interpolation=InterpolationMode.BILINEAR,
                           fill=[float(image.min())])
-        mask = F.rotate(mask.unsqueeze(0), angle,
+        mask = TF.rotate(mask.unsqueeze(0), angle,
                          interpolation=InterpolationMode.NEAREST,
                          fill=[0]).squeeze(0)
 
@@ -76,7 +76,6 @@ class HipMRIDataset(Dataset):
     Returns:
         image: float tensor (1, H, W), normalised to zero mean / unit variance
         mask:  long tensor (H, W) of class indices
-               (or float one-hot (num_classes, H, W) if one_hot=True)
     """
 
     def __init__(self, root, split="train", num_classes=6, norm_image=True, early_stop=False, augment=False):
@@ -102,6 +101,8 @@ class HipMRIDataset(Dataset):
 
         if early_stop:  # quick testing with a small subset
             image_paths, mask_paths = image_paths[:21], mask_paths[:21]
+
+        self.names = [os.path.basename(p) for p in image_paths]
 
         # Pre-load everything into memory (slices are small), like load_data_2D
         first = load_nifti_2d(image_paths[0])

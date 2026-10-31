@@ -66,7 +66,8 @@ class DiceCELoss(torch.nn.Module):
         dims = (0, 2, 3)
         inter = (probs * target).sum(dims)
         denom = probs.sum(dims) + target.sum(dims)
-        dice_loss = 1 - ((2 * inter + self.eps) / (denom + self.eps)).mean()
+        dice_per_class = (2 * inter + self.eps) / (denom + self.eps)   # shape (C,)
+        dice_loss = 1 - dice_per_class[1:].mean()
 
         # Cross-entropy part (accepts one-hot float targets)
         ce_loss = torch.nn.functional.cross_entropy(logits, target)
@@ -116,7 +117,7 @@ def main():
     set_seed(SEED)
     train_loader, val_loader, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
 
-    model = UNet2D(nn_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
+    model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
     criterion = DiceCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
@@ -133,12 +134,12 @@ def main():
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        history["val_dice"].append(val_dice[1:].mean()().item())
-        history["val_iou"].append(val_iou.mean().item())
+        history["val_dice"].append(val_dice[1:].mean().item())
+        history["val_iou"].append(val_iou[1:].mean().item())
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
-              f"val loss {val_loss:.4f} | val Dice {val_dice[1:].mean()():.4f} | "
-              f"val IoU {val_iou.mean():.4f}")
+              f"val loss {val_loss:.4f} | val Dice {val_dice[1:].mean():.4f} | "
+              f"val IoU {val_iou[1:].mean():.4f}")
 
         if val_dice[1:].mean().item() > best_dice:  # keep the best model on validation
             best_dice = val_dice[1:].mean().item()
@@ -155,7 +156,7 @@ def main():
     print("\nTest results (per class):")
     for c in range(NUM_CLASSES):
         print(f"  class {c}: Dice {test_dice[c]:.4f} | IoU {test_iou[c]:.4f}")
-    print(f"  mean : Dice {test_dice[1:].mean():.4f} | IoU {test_iou.mean():.4f}")
+    print(f"  mean : Dice {test_dice[1:].mean():.4f} | IoU {test_iou[1:].mean():.4f}")
 
 
 if __name__ == "__main__":
