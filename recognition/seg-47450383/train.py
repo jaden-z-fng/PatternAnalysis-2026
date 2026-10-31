@@ -1,5 +1,7 @@
 import torch
 import time
+import random
+import numpy as np
 import matplotlib.pyplot as plt
 
 from modules import UNet2D           # your model
@@ -13,7 +15,17 @@ LR = 1e-3
 BATCH_SIZE = 16
 SAVE_PATH = "unet2d.pth"
 DATA_ROOT = "."
+SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def set_seed(seed=SEED):
+    random.seed(seed)                  # Python's built-in RNG
+    np.random.seed(seed)               # NumPy
+    torch.manual_seed(seed)            # PyTorch CPU (also seeds CUDA in recent versions)
+    torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def to_one_hot(masks):
     """[B, H, W] integer labels -> [B, C, H, W] one-hot floats."""
@@ -101,6 +113,7 @@ def plot_history(history):
     plt.close()
 
 def main():
+    set_seed(SEED)
     train_loader, val_loader, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
 
     model = UNet2D(nn_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
