@@ -11,6 +11,7 @@ EPOCHS = 30
 LR = 1e-3
 BATCH_SIZE = 16
 SAVE_PATH = "unet2d.pth"
+DATA_ROOT = "."
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def to_one_hot(masks):
@@ -99,7 +100,7 @@ def plot_history(history):
     plt.close()
 
 def main():
-    train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
+    train_loader, val_loader, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
 
     model = UNet2D(nn_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
     criterion = DiceCELoss()
@@ -118,15 +119,15 @@ def main():
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        history["val_dice"].append(val_dice.mean().item())
+        history["val_dice"].append(val_dice[1:].mean()().item())
         history["val_iou"].append(val_iou.mean().item())
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
-              f"val loss {val_loss:.4f} | val Dice {val_dice.mean():.4f} | "
+              f"val loss {val_loss:.4f} | val Dice {val_dice[1:].mean()():.4f} | "
               f"val IoU {val_iou.mean():.4f}")
 
-        if val_dice.mean().item() > best_dice:  # keep the best model on validation
-            best_dice = val_dice.mean().item()
+        if val_dice[1:].mean().item() > best_dice:  # keep the best model on validation
+            best_dice = val_dice[1:].mean().item()
             torch.save(model.state_dict(), SAVE_PATH)
 
     print(f"Training time: {(time.time() - start) / 60:.1f} min")
@@ -135,3 +136,13 @@ def main():
 
     plot_history(history)
 
+    model.load_state_dict(torch.load(SAVE_PATH, map_location=DEVICE))
+    _, test_dice, test_iou = evaluate(model, test_loader, criterion)
+    print("\nTest results (per class):")
+    for c in range(NUM_CLASSES):
+        print(f"  class {c}: Dice {test_dice[c]:.4f} | IoU {test_iou[c]:.4f}")
+    print(f"  mean : Dice {test_dice[1:].mean():.4f} | IoU {test_iou.mean():.4f}")
+
+
+if __name__ == "__main__":
+       main()

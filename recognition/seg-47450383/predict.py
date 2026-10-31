@@ -7,12 +7,13 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
  
 from modules import UNet2D               
-from dataset import HipMRIDataset
+from dataset import HipMRIDataset, get_dataloaders
 
 TEST_IMG_DIR = "keras_slices_test"
 TEST_SEG_DIR = "keras_slices_seg_test"
 WEIGHTS_PATH = "unet2d.pth"
 OUT_DIR = "predictions"
+DATA_ROOT = "."
 NUM_CLASSES = 6                           
 BATCH_SIZE = 8
 NUM_FIGURES = 3                            # how many best / worst slices to plot
@@ -75,8 +76,8 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
  
     # ---- data ----
-    test_set = HipMRIDataset(TEST_IMG_DIR, TEST_SEG_DIR)   # ADAPT: constructor args
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
+    test_set = HipMRIDataset(DATA_ROOT, "test") 
+    _, _, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
  
     # ---- model ----
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
@@ -160,4 +161,5 @@ def main():
                       os.path.join(OUT_DIR, f"{tag}_slice_{idx}.png"))
     print(f"Saved figures to {OUT_DIR}/")
 
-
+if __name__ == "__main__":
+       main()
