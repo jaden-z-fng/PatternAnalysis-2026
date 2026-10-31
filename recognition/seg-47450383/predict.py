@@ -1,22 +1,24 @@
 import os
 import time
- 
+import re
+from collections import defaultdict
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
  
 from modules import UNet2D               
-from dataset import HipMRIDataset, get_dataloaders
-
+from dataset import HipMRIDataset
 
 WEIGHTS_PATH = "unet2d.pth"
 OUT_DIR = "predictions"
 DATA_ROOT = "."
 NUM_CLASSES = 6                           
 BATCH_SIZE = 8
-NUM_FIGURES = 3                            # how many best / worst slices to plot
+NUM_FIGURES = 3                            
 EPS = 1e-6
+NAME_RE = re.compile(r"case_(\d+)_week_(\d+)_slice_(\d+)")
+EDGE_SLICES = 2
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,13 +71,70 @@ def plot_case(image, gt, pred, title, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=120)
     plt.close(fig)
- 
+
+
+def parse_name(name):
+    case, week, sl = NAME_RE.search(name).groups()
+    return f"{case}_w{week}", int(sl)
+
+def add_position(records):
+    """Find each case's prostate extent from the GT and locate every slice relative to it."""
+    for r in records:
+        r.update(pos=None, end_dist=None, end=None, inside=False)
+    by_case = defaultdict(list)
+    for r in records:
+        by_case[r["case"]].append(r)
+    for rs in by_case.values():
+        present = [r["slice"] for r in rs if r["gt_area"] > 0]
+        if not present:
+            continue
+        lo, hi = min(present), max(present)
+        for r in rs:
+            s = r["slice"]
+            r["inside"] = lo <= s <= hi
+            r["pos"] = (s - lo) / max(hi - lo, 1)
+            r["end_dist"] = min(abs(s - lo), abs(s - hi))
+            r["end"] = "low-index end" if abs(s - lo) <= abs(s - hi) else "high-index end"
+
+
+def report_by_position(records, n_bins=5):
+    inside = [r for r in records if r["inside"] and r["dice"] is not None]
+    bins = defaultdict(list)
+    for r in inside:
+        bins[min(int(r["pos"] * n_bins), n_bins - 1)].append(r["dice"])
+
+    print("\nProstate Dice along its extent (0 = first slice, 1 = last):")
+    for k in range(n_bins):
+        if bins[k]:
+            print(f"  {k / n_bins:.1f}-{(k + 1) / n_bins:.1f}: "
+                  f"{np.mean(bins[k]):.3f}  (n={len(bins[k])})")
+
+    edge = [r["dice"] for r in inside if r["end_dist"] < EDGE_SLICES]
+    mid = [r["dice"] for r in inside if r["end_dist"] >= EDGE_SLICES]
+    if edge and mid:
+        print(f"  Edge slices (<{EDGE_SLICES} from end): {np.mean(edge):.3f} (n={len(edge)})"
+              f" | Central slices: {np.mean(mid):.3f} (n={len(mid)})")
+
+    spurious = [r for r in records if r["gt_area"] == 0 and r["pr_area"] > 0]
+    print(f"  Slices with no GT prostate but predicted prostate: {len(spurious)}")
+
+
+def pick_failures(records, k):
+    edge = sorted((r for r in records
+                   if r["inside"] and r["end_dist"] < EDGE_SLICES and r["dice"] is not None),
+                  key=lambda r: r["dice"])
+    artifacts = sorted((r for r in records if r["gt_area"] == 0 and r["pr_area"] > 0),
+                       key=lambda r: -r["pr_area"])
+    centre = sorted((r for r in records
+                     if r["inside"] and r["end_dist"] >= EDGE_SLICES and r["dice"] is not None),
+                    key=lambda r: -r["dice"])
+    return edge[:k], artifacts[:k], centre[:k]
  
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
  
-    # ---- data ----
-    _, _, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
+    test_set = HipMRIDataset(DATA_ROOT, "test")
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
  
     # ---- model ----
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
@@ -88,9 +147,9 @@ def main():
     # ---- inference ----
     inter = torch.zeros(NUM_CLASSES)
     p_area = torch.zeros(NUM_CLASSES)
-    t_area = torch.zeros(NUM_CLASSES)
-    slice_scores = []        # (slice index, mean Dice over classes present in GT)
-    cache = {}               # slice index -> (image, gt, pred) kept for plotting
+    t_area = torch.zeros(NUM_CLASSES)  
+    cache = {}
+    records = []          
     n_slices = 0
     total_time = 0.0
  
@@ -114,18 +173,18 @@ def main():
             p_area += p
             t_area += t
  
-            # per-slice Dice so we can find the best and worst cases
             for b in range(images.shape[0]):
-                dices = []
-                for c in range(1, NUM_CLASSES):      # skip background
-                    gt_c = target[b] == c
-                    if gt_c.sum() == 0:
-                        continue
-                    pr_c = pred[b] == c
-                    d = (2 * (gt_c & pr_c).sum() + EPS) / (gt_c.sum() + pr_c.sum() + EPS)
-                    dices.append(d.item())
-                if dices:
-                    slice_scores.append((n_slices, float(np.mean(dices))))
+                name = test_set.names[n_slices]
+                case, sl = parse_name(name)
+                gt_p = target[b] == 5
+                pr_p = pred[b] == 5
+                gt_area, pr_area = gt_p.sum().item(), pr_p.sum().item()
+                pdice = None
+                if gt_area > 0:
+                    pdice = (2 * (gt_p & pr_p).sum().item() + EPS) / (gt_area + pr_area + EPS)
+                records.append(dict(idx=n_slices, name=name, case=case, slice=sl,
+                                    gt_area=gt_area, pr_area=pr_area, dice=pdice))
+
                 cache[n_slices] = (
                     images[b, 0].cpu().numpy(),
                     target[b].cpu().numpy(),
@@ -147,16 +206,19 @@ def main():
     if device.type == "cuda":
         print(f"Peak GPU memory: {torch.cuda.max_memory_allocated() / 1024 ** 2:.0f} MB")
  
-    # ---- visualisations: worst and best slices ----
-    slice_scores.sort(key=lambda s: s[1])
-    worst = slice_scores[:NUM_FIGURES]
-    best = slice_scores[-NUM_FIGURES:]
-    for tag, chosen in (("worst", worst), ("best", best)):
-        for idx, score in chosen:
-            image, gt, pred = cache[idx]
-            plot_case(image, gt, pred,
-                      f"{tag} case: slice {idx}, mean Dice {score:.3f}",
-                      os.path.join(OUT_DIR, f"{tag}_slice_{idx}.png"))
+    add_position(records)
+    report_by_position(records)
+
+    edge, artifacts, centre = pick_failures(records, NUM_FIGURES)
+    groups = (("edge_worst", edge), ("artifact", artifacts), ("central_best", centre))
+    for tag, chosen in groups:
+        for r in chosen:
+            image, gt, pred = cache[r["idx"]]
+            d = "n/a" if r["dice"] is None else f"{r['dice']:.3f}"
+            title = (f"{tag}: {r['name']} | prostate Dice {d} | "
+                    f"GT area {r['gt_area']}, pred area {r['pr_area']}")
+            stem = r["name"].replace(".nii.gz", "")
+            plot_case(image, gt, pred, title, os.path.join(OUT_DIR, f"{tag}_{stem}.png"))
     print(f"Saved figures to {OUT_DIR}/")
 
 if __name__ == "__main__":

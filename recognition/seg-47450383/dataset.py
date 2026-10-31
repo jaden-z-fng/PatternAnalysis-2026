@@ -116,6 +116,8 @@ class HipMRIDataset(Dataset):
             self.images[i] = load_nifti_2d(image_paths[i], norm_image=norm_image)
             # Masks are label maps: no normalisation, round to integer classes
             self.masks[i] = np.rint(load_nifti_2d(mask_paths[i])).astype(np.int64)
+            
+        assert self.masks.min() >= 0 and self.masks.max() < num_classes
 
     def __len__(self):
         return len(self.images)
