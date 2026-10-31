@@ -116,7 +116,7 @@ class HipMRIDataset(Dataset):
             self.images[i] = load_nifti_2d(image_paths[i], norm_image=norm_image)
             # Masks are label maps: no normalisation, round to integer classes
             self.masks[i] = np.rint(load_nifti_2d(mask_paths[i])).astype(np.int64)
-            
+
         assert self.masks.min() >= 0 and self.masks.max() < num_classes
 
     def __len__(self):
@@ -151,7 +151,8 @@ if __name__ == "__main__":
     # Quick check: python dataset.py /path/to/data
     import sys
 
-    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    # root = sys.argv[1] if len(sys.argv) > 1 else "."
+    root = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
     ds = HipMRIDataset(root, "train", early_stop=True)
     img, msk = ds[0]
     print(len(ds), img.shape, img.dtype, msk.shape, msk.dtype, msk.unique())

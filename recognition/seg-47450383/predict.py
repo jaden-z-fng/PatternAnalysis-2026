@@ -12,7 +12,8 @@ from dataset import HipMRIDataset
 
 WEIGHTS_PATH = "unet2d.pth"
 OUT_DIR = "predictions"
-DATA_ROOT = "."
+DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
+# DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 NUM_CLASSES = 6                           
 BATCH_SIZE = 8
 NUM_FIGURES = 3                            

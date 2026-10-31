@@ -14,7 +14,8 @@ EPOCHS = 30
 LR = 1e-3
 BATCH_SIZE = 16
 SAVE_PATH = "unet2d.pth"
-DATA_ROOT = "."
+# DATA_ROOT = "."
+DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 SEED = 42
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -109,6 +110,12 @@ def plot_history(history):
     ax[1].plot(epochs, history["val_dice"], label="val mean Dice")
     ax[1].plot(epochs, history["val_iou"], label="val mean IoU")
     ax[1].set_title("Validation metrics"); ax[1].set_xlabel("epoch"); ax[1].legend()
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    per_class = np.array(history["val_dice_cls"])        # (epochs, classes)
+    for c in range(1, per_class.shape[1]):
+        ax2.plot(epochs, per_class[:, c], label=f"class {c}")
+    ax2.set_title("Validation Dice per class")
+    ax2.set_xlabel("epoch"); ax2.legend()
     plt.tight_layout()
     plt.savefig("training_curves.png", dpi=150)
     plt.close()
@@ -124,7 +131,7 @@ def main():
     if DEVICE.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    history = {"train_loss": [], "val_loss": [], "val_dice": [], "val_iou": []}
+    history = {"train_loss": [], "val_loss": [], "val_dice": [], "val_iou": [], "val_dice_cls": []}
     best_dice = 0.0
     start = time.time()
 
@@ -136,6 +143,7 @@ def main():
         history["val_loss"].append(val_loss)
         history["val_dice"].append(val_dice[1:].mean().item())
         history["val_iou"].append(val_iou[1:].mean().item())
+        history["val_dice_cls"].append(val_dice.cpu().tolist())
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
               f"val loss {val_loss:.4f} | val Dice {val_dice[1:].mean():.4f} | "
