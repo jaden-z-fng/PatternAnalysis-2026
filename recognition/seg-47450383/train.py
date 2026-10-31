@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 from modules import UNet2D           # your model
 from dataset import get_dataloaders
+import torch.nn.functional as F
 
 
 NUM_CLASSES = 6
@@ -16,12 +17,12 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def to_one_hot(masks):
     """[B, H, W] integer labels -> [B, C, H, W] one-hot floats."""
-    return torch.nn.functional.one_hot(masks.long(), NUM_CLASSES).permute(0, 3, 1, 2).float()
+    return F.one_hot(masks.long(), NUM_CLASSES).permute(0, 3, 1, 2).float()
 
 @torch.no_grad()
 def update_counts(logits, target, counts):
     """Accumulate per-class intersection / pred / target pixel counts."""
-    pred = torch.nn.functional.one_hot(
+    pred = F.one_hot(
         logits.argmax(dim=1), NUM_CLASSES).permute(0, 3, 1, 2).float()
     dims = (0, 2, 3)
     counts["inter"] += (pred * target).sum(dims)

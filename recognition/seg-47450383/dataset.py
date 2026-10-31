@@ -1,11 +1,14 @@
 import os
 import glob
+import random
+import torch
 
 import nibabel as nib
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import InterpolationMode
+import torch.nn.functional as F
 
 TARGET_SHAPE = (256, 128)
 
@@ -20,6 +23,27 @@ def center_crop_to_shape(arr, target_shape=TARGET_SHAPE):
     c0 = crop_c // 2
     return arr[r0 : r0 + target_shape[0], c0 : c0 + target_shape[1]]
 
+def augment(image, mask):
+    """Randomly augment an image/mask pair.
+
+    image: float tensor (1, H, W)
+    mask:  long tensor (H, W) of class indices
+    """
+    # Horizontal flip (same for both)
+    if random.random() < 0.5:
+        image = torch.flip(image, dims=[-1])
+        mask = torch.flip(mask, dims=[-1])
+
+    # Small rotation (same angle for both)
+    if random.random() < 0.5:
+        angle = random.uniform(-10, 10)
+        image = F.rotate(image, angle, interpolation=InterpolationMode.BILINEAR,
+                          fill=[float(image.min())])
+        mask = F.rotate(mask.unsqueeze(0), angle,
+                         interpolation=InterpolationMode.NEAREST,
+                         fill=[0]).squeeze(0)
+
+    return image, mask
 
 def load_nifti_2d(path, norm_image=False, dtype=np.float32):
     """Load one 2D slice from a .nii.gz file (same handling as load_data_2D)."""
@@ -55,8 +79,9 @@ class HipMRIDataset(Dataset):
                (or float one-hot (num_classes, H, W) if one_hot=True)
     """
 
-    def __init__(self, root, split="train", num_classes=6, norm_image=True, early_stop=False):
+    def __init__(self, root, split="train", num_classes=6, norm_image=True, early_stop=False, augment=False):
         self.num_classes = num_classes
+        self.augment = augment
 
         image_dir = os.path.join(root, f"keras_slices_{split}")
         mask_dir = os.path.join(root, f"keras_slices_seg_{split}")
@@ -98,12 +123,15 @@ class HipMRIDataset(Dataset):
         image = torch.from_numpy(self.images[idx]).unsqueeze(0)  # (1, H, W)
         mask = torch.from_numpy(self.masks[idx])                 # (H, W)
 
+        if self.augment:
+            image, mask = augment(image, mask)
+
         return image, mask
 
 
 def get_dataloaders(root, batch_size=16, num_classes=6, num_workers=0):
     """Build train / validation / test dataloaders."""
-    train_set = HipMRIDataset(root, "train", num_classes)
+    train_set = HipMRIDataset(root, "train", num_classes, augment=True)
     val_set = HipMRIDataset(root, "validate", num_classes)
     test_set = HipMRIDataset(root, "test", num_classes)
 
