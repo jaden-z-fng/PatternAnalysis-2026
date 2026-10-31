@@ -101,8 +101,8 @@ def plot_history(history):
 def main():
     train_loader, val_loader, test_loader = get_dataloaders(batch_size=BATCH_SIZE)
 
-    model = UNet2D(in_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
-    criterion = DiceLoss()
+    model = UNet2D(nn_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
+    criterion = DiceCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
     if DEVICE.type == "cuda":

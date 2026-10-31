@@ -79,7 +79,7 @@ def main():
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
  
     # ---- model ----
-    model = UNet2D(in_channels=1, num_classes=NUM_CLASSES).to(device)
+    model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
  
