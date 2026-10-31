@@ -43,6 +43,14 @@ def per_class_counts(pred, target, num_classes):
         p_area[c] = p.sum().item()
         t_area[c] = t.sum().item()
     return inter, p_area, t_area
+
+@torch.no_grad()
+def predict_slice(model, dataset, idx):
+    """Re-run the model on one test slice and return numpy arrays for plotting."""
+    image, mask = dataset[idx]                      # (1,H,W), (H,W); test set is unaugmented
+    logits = model(image.unsqueeze(0).to(device))
+    pred = logits.argmax(dim=1)[0].cpu().numpy()
+    return image[0].numpy(), mask.numpy(), pred
  
  
 def plot_case(image, gt, pred, title, save_path):
@@ -148,7 +156,6 @@ def main():
     inter = torch.zeros(NUM_CLASSES)
     p_area = torch.zeros(NUM_CLASSES)
     t_area = torch.zeros(NUM_CLASSES)  
-    cache = {}
     records = []          
     n_slices = 0
     total_time = 0.0
@@ -185,11 +192,7 @@ def main():
                 records.append(dict(idx=n_slices, name=name, case=case, slice=sl,
                                     gt_area=gt_area, pr_area=pr_area, dice=pdice))
 
-                cache[n_slices] = (
-                    images[b, 0].cpu().numpy(),
-                    target[b].cpu().numpy(),
-                    pred[b].cpu().numpy(),
-                )
+                
                 n_slices += 1
  
     # ---- metrics ----
@@ -213,7 +216,7 @@ def main():
     groups = (("edge_worst", edge), ("artifact", artifacts), ("central_best", centre))
     for tag, chosen in groups:
         for r in chosen:
-            image, gt, pred = cache[r["idx"]]
+            image, gt, pred = predict_slice(model, test_set, r["idx"])
             d = "n/a" if r["dice"] is None else f"{r['dice']:.3f}"
             title = (f"{tag}: {r['name']} | prostate Dice {d} | "
                     f"GT area {r['gt_area']}, pred area {r['pr_area']}")
