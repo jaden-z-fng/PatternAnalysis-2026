@@ -54,26 +54,51 @@ def predict_slice(model, dataset, idx):
     return image[0].numpy(), mask.numpy(), pred
  
  
-def plot_case(image, gt, pred, title, save_path):
-    """Four panels: input, ground truth, prediction, difference overlay."""
-    wrong = gt != pred
-    fp = (pred > 0) & (gt == 0)                      # predicted structure, none in GT
-    fn = (gt > 0) & (pred == 0)                      # missed structure
-    diff = np.zeros(gt.shape + (3,))
-    diff[fp] = [1, 0, 0]                             # red   = false positive
-    diff[fn] = [0, 0, 1]                             # blue  = false negative
-    diff[wrong & ~fp & ~fn] = [1, 1, 0]              # yellow = wrong class
+# def plot_case(image, gt, pred, title, save_path):
+#     """Four panels: input, ground truth, prediction, difference overlay."""
+#     wrong = gt != pred
+#     fp = (pred > 0) & (gt == 0)                      # predicted structure, none in GT
+#     fn = (gt > 0) & (pred == 0)                      # missed structure
+#     diff = np.zeros(gt.shape + (3,))
+#     diff[fp] = [1, 0, 0]                             # red   = false positive
+#     diff[fn] = [0, 0, 1]                             # blue  = false negative
+#     diff[wrong & ~fp & ~fn] = [1, 1, 0]              # yellow = wrong class
  
+#     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+#     axes[0].imshow(image, cmap="gray")
+#     axes[0].set_title("Input")
+#     axes[1].imshow(gt, cmap="tab10", vmin=0, vmax=9, interpolation="nearest")
+#     axes[1].set_title("Ground truth")
+#     axes[2].imshow(pred, cmap="tab10", vmin=0, vmax=9, interpolation="nearest")
+#     axes[2].set_title("Prediction")
+#     axes[3].imshow(image, cmap="gray")
+#     axes[3].imshow(diff, alpha=0.6)
+#     axes[3].set_title("Difference (red FP, blue FN, yellow wrong class)")
+#     for ax in axes:
+#         ax.axis("off")
+#     fig.suptitle(title)
+#     plt.tight_layout()
+#     plt.savefig(save_path, dpi=120)
+#     plt.close(fig)
+
+def plot_case(image, gt, pred, title, save_path):
+    gt_p, pr_p = gt == 5, pred == 5
+    fp = pr_p & ~gt_p                                # prostate predicted, not in GT
+    fn = gt_p & ~pr_p                                # prostate in GT, missed
+
+    diff = np.zeros(gt.shape + (4,))                 # RGBA, transparent by default
+    diff[fp] = [1, 0, 0, 0.8]                        # red  = false positive
+    diff[fn] = [0, 1, 1, 0.8]                        # cyan = false negative
+
     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-    axes[0].imshow(image, cmap="gray")
-    axes[0].set_title("Input")
+    axes[0].imshow(image, cmap="gray");  axes[0].set_title("Input")
     axes[1].imshow(gt, cmap="tab10", vmin=0, vmax=9, interpolation="nearest")
     axes[1].set_title("Ground truth")
     axes[2].imshow(pred, cmap="tab10", vmin=0, vmax=9, interpolation="nearest")
     axes[2].set_title("Prediction")
     axes[3].imshow(image, cmap="gray")
-    axes[3].imshow(diff, alpha=0.6)
-    axes[3].set_title("Difference (red FP, blue FN, yellow wrong class)")
+    axes[3].imshow(diff, interpolation="nearest")
+    axes[3].set_title("Prostate errors (red FP, cyan FN)")
     for ax in axes:
         ax.axis("off")
     fig.suptitle(title)

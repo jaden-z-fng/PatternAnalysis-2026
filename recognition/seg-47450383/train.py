@@ -32,6 +32,11 @@ def to_one_hot(masks):
     """[B, H, W] integer labels -> [B, C, H, W] one-hot floats."""
     return F.one_hot(masks.long(), NUM_CLASSES).permute(0, 3, 1, 2).float()
 
+def count_params(model):
+    total = sum(p.numel() for p in model.parameters())
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return total, trainable
+
 @torch.no_grad()
 def update_counts(logits, target, counts):
     """Accumulate per-class intersection / pred / target pixel counts."""
@@ -127,6 +132,8 @@ def main():
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
     criterion = DiceCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    total, trainable = count_params(model)
+    print(f"Parameters: {total:,} total, {trainable:,} trainable")
 
     if DEVICE.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
