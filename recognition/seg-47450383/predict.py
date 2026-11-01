@@ -1,3 +1,4 @@
+from linecache import cache
 import os
 import time
 import re
@@ -170,6 +171,16 @@ def pick_failures(records, k):
                      if r["inside"] and r["end_dist"] >= EDGE_SLICES and r["dice"] is not None),
                     key=lambda r: -r["dice"])
     return edge[:k], artifacts[:k], centre[:k]
+
+def list_spurious(records):
+    spurious = [r for r in records if r["gt_area"] == 0 and r["pr_area"] > 0]
+    spurious.sort(key=lambda r: (r["case"], r["slice"]))
+
+    print(f"\nSlices with no GT prostate but predicted prostate: {len(spurious)}")
+    print(f"{'Slice file':<40}{'Pred px':>9}{'Dist to GT prostate':>22}")
+    for r in spurious:
+        dist = "no GT prostate in case" if r["end_dist"] is None else f"{r['end_dist']} slices"
+        print(f"{r['name']:<40}{r['pr_area']:>9}{dist:>22}")
  
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -244,6 +255,7 @@ def main():
  
     add_position(records)
     report_by_position(records)
+    list_spurious(records)
 
     edge, artifacts, centre = pick_failures(records, NUM_FIGURES)
     groups = (("edge_worst", edge), ("artifact", artifacts), ("central_best", centre))
@@ -255,6 +267,11 @@ def main():
                     f"GT area {r['gt_area']}, pred area {r['pr_area']}")
             stem = r["name"].replace(".nii.gz", "")
             plot_case(image, gt, pred, title, os.path.join(OUT_DIR, f"{tag}_{stem}.png"))
+
+    r = next(r for r in records if r["name"] == "case_040_week_4_slice_2.nii.gz")
+    image, gt, pred = cache[r["idx"]]
+    plot_case(image, gt, pred, "far artifact: " + r["name"],
+          os.path.join(OUT_DIR, "far_artifact_week4_slice2.png"))
     print(f"Saved figures to {OUT_DIR}/")
 
 if __name__ == "__main__":
