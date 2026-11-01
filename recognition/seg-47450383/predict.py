@@ -5,6 +5,7 @@ from collections import defaultdict
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from torch.utils.data import DataLoader
  
 from modules import UNet2D               
@@ -20,6 +21,7 @@ NUM_FIGURES = 3
 EPS = 1e-6
 NAME_RE = re.compile(r"case_(\d+)_week_(\d+)_slice_(\d+)")
 EDGE_SLICES = 2
+CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -101,9 +103,14 @@ def plot_case(image, gt, pred, title, save_path):
     axes[3].set_title("Prostate errors (red FP, cyan FN)")
     for ax in axes:
         ax.axis("off")
+    cmap = plt.get_cmap("tab10")
+    class_handles = [Patch(facecolor=cmap(c), label=f"{c}: {CLASS_NAMES[c]}")
+                 for c in range(NUM_CLASSES)]
+    axes[2].legend(handles=class_handles, loc="upper center",
+               bbox_to_anchor=(0.5, -0.02), ncol=2, fontsize=7, frameon=False)
     fig.suptitle(title)
     plt.tight_layout()
-    plt.savefig(save_path, dpi=120)
+    plt.savefig(save_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
 
 
