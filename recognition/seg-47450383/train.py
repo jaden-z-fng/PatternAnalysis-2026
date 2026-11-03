@@ -52,7 +52,7 @@ class DiceCELoss(torch.nn.Module):
         dice_per_class = (2 * inter + self.eps) / (denom + self.eps)
         dice_loss = 1 - dice_per_class[1:].mean()
 
-        ce_loss = torch.nn.functional.cross_entropy(logits, target)
+        ce_loss = F.cross_entropy(logits, target)
         return (1 - self.ce_weight) * dice_loss + self.ce_weight * ce_loss
 
 
@@ -128,7 +128,7 @@ def main():
         mean_dice = val_dice[1:].mean().item()
 
         history["train_loss"].append(train_loss)
-        history["val_loss"].append(val_loss)
+        history["val_loss (dice)"].append(val_loss)
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
               f"val loss {val_loss:.4f} | val Dice {mean_dice:.4f}")

@@ -23,6 +23,7 @@ def center_crop_to_shape(arr, target_shape=TARGET_SHAPE):
     c0 = crop_c // 2
     return arr[r0 : r0 + target_shape[0], c0 : c0 + target_shape[1]]
 
+
 def augment(image, mask):
     """Randomly augment an image/mask pair.
 
