@@ -143,13 +143,5 @@ def main():
 
     plot_history(history)
 
-    model.load_state_dict(torch.load(SAVE_PATH, map_location=DEVICE))
-    _, test_dice = evaluate(model, test_loader, criterion)
-    print("\nTest results (per class):")
-    for c in range(NUM_CLASSES):
-        print(f"  class {c}: Dice {test_dice[c]:.4f}")
-    print(f"  mean (foreground): Dice {test_dice[1:].mean():.4f}")
-
-
 if __name__ == "__main__":
     main()
