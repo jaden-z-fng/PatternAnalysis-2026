@@ -105,26 +105,16 @@ def evaluate(model, loader, criterion):
 
 def plot_history(history):
     epochs = range(1, len(history["train_loss"]) + 1)
-
-    fig, ax = plt.subplots(1, 2, figsize=(11, 4))
-    ax[0].plot(epochs, history["train_loss"], label="train")
-    ax[0].plot(epochs, history["val_loss"], label="val")
-    ax[0].set_title("Loss"); ax[0].set_xlabel("epoch"); ax[0].legend()
-    ax[1].plot(epochs, history["val_dice"], label="val mean Dice")
-    ax[1].set_title("Validation Dice"); ax[1].set_xlabel("epoch"); ax[1].legend()
-    fig.tight_layout()
-    fig.savefig("training_curves.png", dpi=150)
-    plt.close(fig)
-
-    fig2, ax2 = plt.subplots(figsize=(6, 4))
-    per_class = np.array(history["val_dice_cls"])  # (epochs, classes)
-    for c in range(1, per_class.shape[1]):
-        ax2.plot(epochs, per_class[:, c], label=f"class {c}")
-    ax2.set_title("Validation Dice per class")
-    ax2.set_xlabel("epoch"); ax2.legend()
-    fig2.tight_layout()
-    fig2.savefig("per_class_dice.png", dpi=150)
-    plt.close(fig2)
+    plt.figure(figsize=(6, 4))
+    plt.plot(epochs, history["train_loss"], label="train")
+    plt.plot(epochs, history["val_loss"], label="validation")
+    plt.title("Training and validation loss")
+    plt.xlabel("epoch")
+    plt.ylabel("loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("training_curves.png", dpi=150)
+    plt.close()
 
 
 def main():
@@ -140,7 +130,7 @@ def main():
     if DEVICE.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    history = {"train_loss": [], "val_loss": [], "val_dice": [], "val_dice_cls": []}
+    history = {"train_loss": [], "val_loss": []}
     best_dice = 0.0
     start = time.time()
 
@@ -151,8 +141,6 @@ def main():
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        history["val_dice"].append(mean_dice)
-        history["val_dice_cls"].append(val_dice.cpu().tolist())
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
               f"val loss {val_loss:.4f} | val Dice {mean_dice:.4f}")
