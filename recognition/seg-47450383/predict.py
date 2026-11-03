@@ -23,20 +23,6 @@ CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def per_class_counts(pred, target, num_classes):
-    """Return intersection, pred-area and target-area per class for one batch."""
-    inter = torch.zeros(num_classes)
-    p_area = torch.zeros(num_classes)
-    t_area = torch.zeros(num_classes)
-    for c in range(num_classes):
-        p = pred == c
-        t = target == c
-        inter[c] = (p & t).sum().item()
-        p_area[c] = p.sum().item()
-        t_area[c] = t.sum().item()
-    return inter, p_area, t_area
-
-
 @torch.no_grad()
 def predict_slice(model, dataset, idx):
     """Re-run the model on one test slice and return numpy arrays for plotting."""
@@ -117,10 +103,12 @@ def main():
             pred = model(images).argmax(dim=1)
             total_time += time.time() - start
 
-            i, p, t = per_class_counts(pred, target, NUM_CLASSES)
-            inter += i.cpu()
-            p_area += p.cpu()
-            t_area += t.cpu()
+            for c in range(NUM_CLASSES):
+                p, t = pred == c, target == c
+                inter[c] += (p & t).sum().item()
+                p_area[c] += p.sum().item()
+                t_area[c] += t.sum().item()
+
 
             # per-slice prostate Dice (None when the slice has no GT prostate)
             gt_p, pr_p = target == PROSTATE, pred == PROSTATE
