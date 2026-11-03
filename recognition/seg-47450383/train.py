@@ -93,17 +93,25 @@ def evaluate(model, loader, criterion):
 
 def plot_history(history):
     epochs = range(1, len(history["train_loss"]) + 1)
-    plt.figure(figsize=(6, 4))
-    plt.plot(epochs, history["train_loss"], label="train")
-    plt.plot(epochs, history["val_loss"], label="validation")
-    plt.title("Training and validation loss")
-    plt.xlabel("epoch")
-    plt.ylabel("loss")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("training_curves.png", dpi=150)
-    plt.close()
 
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4))
+
+    ax[0].plot(epochs, history["train_loss"], label="train")
+    ax[0].plot(epochs, history["val_loss"], label="validation")
+    ax[0].set_title("Training and validation loss")
+    ax[0].set_xlabel("epoch")
+    ax[0].set_ylabel("loss")
+    ax[0].legend()
+
+    ax[1].plot(epochs, history["val_dice_loss"], label="validation Dice loss", color="tab:red")
+    ax[1].set_title("Validation Dice loss (1 - mean foreground Dice)")
+    ax[1].set_xlabel("epoch")
+    ax[1].set_ylabel("Dice loss")
+    ax[1].legend()
+
+    fig.tight_layout()
+    fig.savefig("training_curves.png", dpi=150)
+    plt.close(fig)
 
 def main():
     set_seed(SEED)
@@ -118,7 +126,7 @@ def main():
     if DEVICE.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    history = {"train_loss": [], "val_loss": []}
+    history = {"train_loss": [], "val_loss": [], "val_dice_loss": []}
     best_dice = 0.0
     start = time.time()
 
@@ -128,7 +136,8 @@ def main():
         mean_dice = val_dice[1:].mean().item()
 
         history["train_loss"].append(train_loss)
-        history["val_loss (dice)"].append(val_loss)
+        history["val_loss"].append(val_loss)
+        history["val_dice_loss"].append(1 - mean_dice)
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
               f"val loss {val_loss:.4f} | val Dice {mean_dice:.4f}")
