@@ -1,28 +1,28 @@
 import os
 import time
-from collections import defaultdict
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from torch.utils.data import DataLoader
- 
-from modules import UNet2D               
+
+from modules import UNet2D
 from dataset import HipMRIDataset
 
 WEIGHTS_PATH = "unet2d.pth"
 OUT_DIR = "predictions"
 DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
 # DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
-NUM_CLASSES = 6 
-PROSTATE = 5                          
+NUM_CLASSES = 6
+PROSTATE = 5
 BATCH_SIZE = 16
-NUM_FIGURES = 3                            
+NUM_FIGURES = 3
 EPS = 1e-6
-EDGE_SLICES = 2
 CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def to_label_map(mask):
     """Accept a one-hot mask (B,C,H,W), a label map (B,H,W) or (B,1,H,W)."""
@@ -31,8 +31,8 @@ def to_label_map(mask):
     if mask.dim() == 4:
         return mask.argmax(dim=1)
     return mask.long()
- 
- 
+
+
 def per_class_counts(pred, target, num_classes):
     """Return intersection, pred-area and target-area per class for one batch."""
     inter = torch.zeros(num_classes)
@@ -46,10 +46,11 @@ def per_class_counts(pred, target, num_classes):
         t_area[c] = t.sum().item()
     return inter, p_area, t_area
 
+
 @torch.no_grad()
 def predict_slice(model, dataset, idx):
     """Re-run the model on one test slice and return numpy arrays for plotting."""
-    image, mask = dataset[idx]                      # (1,H,W), (H,W); test set is unaugmented
+    image, mask = dataset[idx]  # (1,H,W), (H,W); test set is unaugmented
     logits = model(image.unsqueeze(0).to(device))
     pred = logits.argmax(dim=1)[0].cpu().numpy()
     return image[0].numpy(), mask.numpy(), pred
@@ -61,7 +62,7 @@ def plot_case(image, gt, pred, title, save_path):
     diff = np.zeros(gt.shape + (4,))      # RGBA, transparent by default
     diff[pr_p & ~gt_p] = [1, 0, 0, 0.8]   # red  = false positive
     diff[gt_p & ~pr_p] = [0, 1, 1, 0.8]   # cyan = false negative
- 
+
     fig, axes = plt.subplots(1, 4, figsize=(16, 4))
     axes[0].imshow(image, cmap="gray")
     axes[0].set_title("Input")
@@ -74,13 +75,14 @@ def plot_case(image, gt, pred, title, save_path):
     axes[3].set_title("Prostate errors (red FP, cyan FN)")
     for ax in axes:
         ax.axis("off")
- 
+
     cmap = plt.get_cmap("tab10")
     handles = [Patch(facecolor=cmap(c), label=f"{c}: {CLASS_NAMES[c]}")
                for c in range(NUM_CLASSES)]
-    axes[2].legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.02),
-                   ncol=2, fontsize=7, frameon=False)
- 
+    for ax in (axes[1], axes[2]):
+        ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.02),
+                  ncol=2, fontsize=7, frameon=False)
+
     fig.suptitle(title)
     plt.tight_layout()
     plt.savefig(save_path, dpi=120, bbox_inches="tight")
@@ -96,33 +98,34 @@ def pick_slices(records, k):
     return scored[:k], wrong[:k]
 
 
- 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
- 
+
     test_set = HipMRIDataset(DATA_ROOT, "test")
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
- 
+
     # ---- model ----
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
- 
+
     # ---- inference ----
     inter = torch.zeros(NUM_CLASSES)
     p_area = torch.zeros(NUM_CLASSES)
-    t_area = torch.zeros(NUM_CLASSES)  
-    records = []          
+    t_area = torch.zeros(NUM_CLASSES)
+    records = []
     n_slices = 0
     total_time = 0.0
- 
+
     with torch.no_grad():
         for images, masks in test_loader:
             images = images.to(device)
             target = to_label_map(masks).to(device)
- 
+
+            start = time.time()
             pred = model(images).argmax(dim=1)
- 
+            total_time += time.time() - start
+
             i, p, t = per_class_counts(pred, target, NUM_CLASSES)
             inter += i.cpu()
             p_area += p.cpu()
@@ -139,9 +142,7 @@ def main():
                                     gt_area=g, pr_area=p_, dice=dice))
                 n_slices += 1
 
- 
     # ---- metrics ----
-    inter, p_area, t_area = inter.float(), p_area.float(), t_area.float()
     dice = (2 * inter + EPS) / (p_area + t_area + EPS)
     iou = (inter + EPS) / (p_area + t_area - inter + EPS)
 
@@ -153,7 +154,7 @@ def main():
     print(f"Mean IoU  (excl. background): {iou[1:].mean().item():.4f}")
     print(f"Inference time: {1000 * total_time / n_slices:.2f} ms per slice")
 
-        # ---- figures ----
+    # ---- figures ----
     low, wrong = pick_slices(records, NUM_FIGURES)
     for tag, chosen in (("low_dice", low), ("false_positive", wrong)):
         for r in chosen:
@@ -167,4 +168,4 @@ def main():
 
 
 if __name__ == "__main__":
-       main()
+    main()
