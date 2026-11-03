@@ -38,28 +38,6 @@ def count_params(model):
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
 
-
-@torch.no_grad()
-def update_counts(logits, target, counts):
-    """Accumulate per-class intersection / pred / target pixel counts."""
-    pred = F.one_hot(
-        logits.argmax(dim=1), NUM_CLASSES).permute(0, 3, 1, 2).float()
-    dims = (0, 2, 3)
-    counts["inter"] += (pred * target).sum(dims)
-    counts["pred"] += pred.sum(dims)
-    counts["target"] += target.sum(dims)
-
-
-def dice_from_counts(counts, eps=1e-6):
-    inter, p, t = counts["inter"], counts["pred"], counts["target"]
-    return (2 * inter + eps) / (p + t + eps)
-
-
-def new_counts():
-    z = lambda: torch.zeros(NUM_CLASSES, device=DEVICE)
-    return {"inter": z(), "pred": z(), "target": z()}
-
-
 class DiceCELoss(torch.nn.Module):
     def __init__(self, ce_weight=0.5, eps=1e-6):
         super().__init__()
@@ -94,13 +72,23 @@ def train_one_epoch(model, loader, criterion, optimizer):
 @torch.no_grad()
 def evaluate(model, loader, criterion):
     model.eval()
-    total, counts = 0.0, new_counts()
+    total = 0.0
+    inter = torch.zeros(NUM_CLASSES, device=DEVICE)
+    pred_sum = torch.zeros(NUM_CLASSES, device=DEVICE)
+    target_sum = torch.zeros(NUM_CLASSES, device=DEVICE)
+
     for images, masks in loader:
         images, masks = images.to(DEVICE), to_one_hot(masks.to(DEVICE))
         logits = model(images)
         total += criterion(logits, masks).item() * images.size(0)
-        update_counts(logits, masks, counts)
-    return total / len(loader.dataset), dice_from_counts(counts)
+
+        pred = to_one_hot(logits.argmax(dim=1))
+        inter += (pred * masks).sum((0, 2, 3))
+        pred_sum += pred.sum((0, 2, 3))
+        target_sum += masks.sum((0, 2, 3))
+
+    dice = (2 * inter + 1e-6) / (pred_sum + target_sum + 1e-6)
+    return total / len(loader.dataset), dice
 
 
 def plot_history(history):
