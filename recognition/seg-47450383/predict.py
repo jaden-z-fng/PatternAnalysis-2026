@@ -23,16 +23,6 @@ CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def to_label_map(mask):
-    """Accept a one-hot mask (B,C,H,W), a label map (B,H,W) or (B,1,H,W)."""
-    if mask.dim() == 4 and mask.shape[1] == 1:
-        return mask[:, 0].long()
-    if mask.dim() == 4:
-        return mask.argmax(dim=1)
-    return mask.long()
-
-
 def per_class_counts(pred, target, num_classes):
     """Return intersection, pred-area and target-area per class for one batch."""
     inter = torch.zeros(num_classes)
@@ -120,7 +110,8 @@ def main():
     with torch.no_grad():
         for images, masks in test_loader:
             images = images.to(device)
-            target = to_label_map(masks).to(device)
+            target = masks.long().to(device)
+            print(masks.shape, masks.dtype)
 
             start = time.time()
             pred = model(images).argmax(dim=1)
