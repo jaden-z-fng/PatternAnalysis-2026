@@ -7,10 +7,11 @@ import torch
 from matplotlib.patches import Patch
 from torch.utils.data import DataLoader
 
-from modules import UNet2D
+from modules import UNet2D, ImprovedUNet2D
 from dataset import HipMRIDataset
 
 WEIGHTS_PATH = "unet2d.pth"
+# WEIGHTS_PATH = "improved_unet2d.pth"
 OUT_DIR = "predictions"
 DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
 # DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
@@ -82,6 +83,7 @@ def main():
 
     # ---- model ----
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
+    # model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
 

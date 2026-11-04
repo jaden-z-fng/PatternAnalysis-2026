@@ -4,7 +4,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from modules import UNet2D
+from modules import UNet2D, ImprovedUNet2D
 from dataset import get_dataloaders
 import torch.nn.functional as F
 
@@ -14,6 +14,7 @@ EPOCHS = 30
 LR = 1e-3
 BATCH_SIZE = 16
 SAVE_PATH = "unet2d.pth"
+# SAVE_PATH = "improved_unet2d.pth"
 # DATA_ROOT = "."
 DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 SEED = 42
@@ -118,6 +119,7 @@ def main():
     train_loader, val_loader, test_loader = get_dataloaders(DATA_ROOT, batch_size=BATCH_SIZE)
 
     model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
+    # model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(DEVICE)
     criterion = DiceCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     total, trainable = count_params(model)
