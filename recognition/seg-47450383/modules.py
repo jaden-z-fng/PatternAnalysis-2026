@@ -109,16 +109,19 @@ class ImprovedDown(nn.Module):
 
 
 class ImprovedUp(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, final=False):
         super().__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="nearest"),
             conv_in_act(in_ch, out_ch, 3),
         )
-        self.loc = nn.Sequential(
-            conv_in_act(out_ch * 2, out_ch * 2, 3),
-            conv_in_act(out_ch * 2, out_ch, 1),
-        )
+        if final: 
+            self.loc = conv_in_act(out_ch * 2, out_ch * 2, 3)
+        else:
+            self.loc = nn.Sequential(
+                conv_in_act(out_ch * 2, out_ch * 2, 3),
+                conv_in_act(out_ch * 2, out_ch, 1),
+            )
 
     def forward(self, x, skip):
         x = self.up(x)
@@ -141,11 +144,12 @@ class ImprovedUNet2D(nn.Module):
         self.up1 = ImprovedUp(b * 16, b * 8)
         self.up2 = ImprovedUp(b * 8, b * 4)
         self.up3 = ImprovedUp(b * 4, b * 2)
-        self.up4 = ImprovedUp(b * 2, b)
+        self.up4 = ImprovedUp(b * 2, b, final=True)
+
 
         self.seg2 = nn.Conv2d(b * 4, num_classes, 1)  # from up2
         self.seg3 = nn.Conv2d(b * 2, num_classes, 1)  # from up3
-        self.seg4 = nn.Conv2d(b, num_classes, 1)      # from up4
+        self.seg4 = nn.Conv2d(b * 2, num_classes, 1)  # from up4
 
     def forward(self, x):
         x1 = self.inc(x)
