@@ -49,7 +49,7 @@ class Up(nn.Module):
 class UNet2D(nn.Module):
     """Standard 4-level U-Net. Outputs raw logits of shape (B, num_classes, H, W)."""
 
-    def __init__(self, n_channels, num_classes=6, base=32):
+    def __init__(self, n_channels, num_classes=6, base=64):
         super().__init__()
         b = base
         self.inc = DoubleConv(n_channels, b)
