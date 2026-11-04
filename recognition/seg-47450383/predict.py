@@ -17,10 +17,12 @@ DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
 # DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 NUM_CLASSES = 6
 PROSTATE = 5
+SLICE_NAME = None
 BATCH_SIZE = 16
 NUM_FIGURES = 3
 EPS = 1e-6
 CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -74,6 +76,25 @@ def pick_slices(records, k):
                    key=lambda r: -r["pr_area"])
     return scored[:k], wrong[:k]
 
+def plot_named_slice(model, dataset, name):
+    """Plot one test slice by filename, e.g. 'case_040_week_4_slice_2'."""
+    stems = [n.replace(".nii.gz", "") for n in dataset.names]
+    stem = name.replace(".nii.gz", "")
+    if stem not in stems:
+        raise SystemExit(f"No test slice named '{stem}'")
+    idx = stems.index(stem)
+
+    image, gt, pred = predict_slice(model, dataset, idx)
+    gt_area = int((gt == PROSTATE).sum())
+    pr_area = int((pred == PROSTATE).sum())
+    overlap = int(((gt == PROSTATE) & (pred == PROSTATE)).sum())
+    d = "n/a" if gt_area == 0 else f"{(2 * overlap + EPS) / (gt_area + pr_area + EPS):.3f}"
+
+    title = f"{stem} | prostate Dice {d} | GT area {gt_area}, pred area {pr_area}"
+    path = os.path.join(OUT_DIR, f"slice_{stem}.png")
+    plot_case(image, gt, pred, title, path)
+    print(f"Saved {path}")
+
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -86,6 +107,10 @@ def main():
     # model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
+
+    if SLICE_NAME:
+        plot_named_slice(model, test_set, SLICE_NAME)
+        return
 
     # ---- inference ----
     inter = torch.zeros(NUM_CLASSES)
