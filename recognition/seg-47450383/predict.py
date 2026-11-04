@@ -11,7 +11,7 @@ from modules import UNet2D, ImprovedUNet2D
 from dataset import HipMRIDataset
 
 WEIGHTS_PATH = "unet2d.pth"
-# WEIGHTS_PATH = "improved_unet2d.pth"
+#WEIGHTS_PATH = "improved_unet2d.pth"
 OUT_DIR = "predictions"
 DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
 # DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"

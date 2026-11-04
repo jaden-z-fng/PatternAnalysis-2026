@@ -2,6 +2,7 @@ import os
 import glob
 import random
 import torch
+import math
 
 import nibabel as nib
 import numpy as np
@@ -43,6 +44,14 @@ def augment(image, mask):
         mask = TF.rotate(mask.unsqueeze(0), angle,
                          interpolation=InterpolationMode.NEAREST,
                          fill=[0]).squeeze(0)
+
+    if random.random() < 0.5:
+        # Log-uniform so brightening and darkening are equally likely
+        gamma = math.exp(random.uniform(math.log(0.7), math.log(1.5)))
+        lo, hi = image.min(), image.max()
+        if hi > lo:  # skip constant (e.g. empty) slices
+            img01 = (image - lo) / (hi - lo)
+            image = img01.pow(gamma) * (hi - lo) + lo
 
     return image, mask
 

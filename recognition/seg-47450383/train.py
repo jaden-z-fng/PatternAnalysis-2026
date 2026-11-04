@@ -14,7 +14,7 @@ EPOCHS = 30
 LR = 1e-3
 BATCH_SIZE = 16
 SAVE_PATH = "unet2d.pth"
-# SAVE_PATH = "improved_unet2d.pth"
+#SAVE_PATH = "improved_unet2d.pth"
 # DATA_ROOT = "."
 DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 SEED = 42
@@ -104,10 +104,11 @@ def plot_history(history):
     ax[0].set_ylabel("loss")
     ax[0].legend()
 
-    ax[1].plot(epochs, history["val_dice_loss"], label="validation Dice loss", color="tab:red")
-    ax[1].set_title("Validation Dice loss (1 - mean foreground Dice)")
+    ax[1].plot(epochs, history["val_dice"], label="validation Dice", color="tab:green")
+    ax[1].set_title("Validation Dice score (mean foreground)")
     ax[1].set_xlabel("epoch")
-    ax[1].set_ylabel("Dice loss")
+    ax[1].set_ylabel("Dice")
+    ax[1].set_ylim(0, 1)
     ax[1].legend()
 
     fig.tight_layout()
@@ -128,7 +129,7 @@ def main():
     if DEVICE.type == "cuda":
         torch.cuda.reset_peak_memory_stats()
 
-    history = {"train_loss": [], "val_loss": [], "val_dice_loss": []}
+    history = {"train_loss": [], "val_loss": [], "val_dice": []}
     best_dice = 0.0
     start = time.time()
 
@@ -139,7 +140,7 @@ def main():
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        history["val_dice_loss"].append(1 - mean_dice)
+        history["val_dice"].append(mean_dice)
 
         print(f"Epoch {epoch:02d}/{EPOCHS} | train loss {train_loss:.4f} | "
               f"val loss {val_loss:.4f} | val Dice {mean_dice:.4f}")
