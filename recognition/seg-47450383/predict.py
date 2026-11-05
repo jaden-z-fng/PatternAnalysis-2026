@@ -1,3 +1,23 @@
+"""
+predict.py - Test-set evaluation and visualisation for HipMRI 2D segmentation.
+
+Loads trained weights, runs inference on the test set, and reports per-class
+Dice and IoU, mean scores (excluding background) and inference time per slice.
+It then saves four-panel figures (input, ground truth, prediction, prostate
+FP/FN overlay) for:
+    - the slices with the lowest prostate Dice, and
+    - the slices where the model predicts prostate but the ground truth has none.
+
+Set SLICE_NAME to plot a single named test slice instead of running the full
+evaluation.
+
+Usage:
+    python predict.py
+
+Course:  COMP3710 - 2.2 Segmentation (HipMRI)
+Author:  <your name / student number>
+"""
+
 import os
 import time
 
@@ -7,39 +27,55 @@ import torch
 from matplotlib.patches import Patch
 from torch.utils.data import DataLoader
 
-from modules import UNet2D, ImprovedUNet2D
 from dataset import HipMRIDataset
+from modules import UNet2D, ImprovedUNet2D  # swap the model in main() to compare
 
-# WEIGHTS_PATH = "unet2d.pth"
-WEIGHTS_PATH = "improved_unet2d.pth"
-OUT_DIR = "predictions"
+# --------------------------------------------------------------------------- #
+# Configuration
+# --------------------------------------------------------------------------- #
+# WEIGHTS_PATH = "unet2d.pth"         # baseline weights
+WEIGHTS_PATH = "improved_unet2d.pth"  # improved model weights
+OUT_DIR = "predictions"               # where figures are saved
 # DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
 DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 NUM_CLASSES = 6
-PROSTATE = 5
-#SLICE_NAME = "case_042_week_0_slice_28"
-SLICE_NAME = None
+PROSTATE = 5                          # class index of the prostate
+# SLICE_NAME = "case_042_week_0_slice_28"
+SLICE_NAME = None                     # set to a slice name to plot just that slice
 BATCH_SIZE = 16
-NUM_FIGURES = 3
-EPS = 1e-6
+NUM_FIGURES = 3                       # figures per category (low Dice / false positive)
+EPS = 1e-6                            # numerical stability in Dice / IoU
 CLASS_NAMES = ["Background", "Body", "Bone", "Bladder", "Rectum", "Prostate"]
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+# --------------------------------------------------------------------------- #
+# Single-slice inference and plotting
+# --------------------------------------------------------------------------- #
 @torch.no_grad()
 def predict_slice(model, dataset, idx):
-    """Re-run the model on one test slice and return numpy arrays for plotting."""
-    image, mask = dataset[idx]  # (1,H,W), (H,W); test set is unaugmented
+    """Re-run the model on one test slice and return numpy arrays for plotting.
+
+    Returns:
+        (image, ground-truth mask, predicted mask), each of shape (H, W).
+    """
+    image, mask = dataset[idx]  # (1, H, W), (H, W); the test set is unaugmented
     logits = model(image.unsqueeze(0).to(device))
     pred = logits.argmax(dim=1)[0].cpu().numpy()
     return image[0].numpy(), mask.numpy(), pred
 
 
 def plot_case(image, gt, pred, title, save_path):
-    """Four panels: input, ground truth, prediction, prostate FP/FN overlay."""
+    """Save a four-panel figure: input, ground truth, prediction, prostate errors.
+
+    The last panel overlays prostate false positives (red) and false negatives
+    (cyan) on the input image.
+    """
     gt_p, pr_p = gt == PROSTATE, pred == PROSTATE
-    diff = np.zeros(gt.shape + (4,))      # RGBA, transparent by default
+
+    # RGBA overlay, fully transparent except where the prostate prediction is wrong
+    diff = np.zeros(gt.shape + (4,))
     diff[pr_p & ~gt_p] = [1, 0, 0, 0.8]   # red  = false positive
     diff[gt_p & ~pr_p] = [0, 1, 1, 0.8]   # cyan = false negative
 
@@ -56,6 +92,7 @@ def plot_case(image, gt, pred, title, save_path):
     for ax in axes:
         ax.axis("off")
 
+    # Class legend under the two label-map panels (same tab10 colours as imshow)
     cmap = plt.get_cmap("tab10")
     handles = [Patch(facecolor=cmap(c), label=f"{c}: {CLASS_NAMES[c]}")
                for c in range(NUM_CLASSES)]
@@ -69,14 +106,6 @@ def plot_case(image, gt, pred, title, save_path):
     plt.close(fig)
 
 
-def pick_slices(records, k):
-    """The k lowest-Dice slices, and the k slices with the most prostate predicted
-    where the ground truth has none (largest wrong prediction first)."""
-    scored = sorted((r for r in records if r["dice"] is not None), key=lambda r: r["dice"])
-    wrong = sorted((r for r in records if r["gt_area"] == 0 and r["pr_area"] > 0),
-                   key=lambda r: -r["pr_area"])
-    return scored[:k], wrong[:k]
-
 def plot_named_slice(model, dataset, name):
     """Plot one test slice by filename, e.g. 'case_040_week_4_slice_2'."""
     stems = [n.replace(".nii.gz", "") for n in dataset.names]
@@ -89,6 +118,7 @@ def plot_named_slice(model, dataset, name):
     gt_area = int((gt == PROSTATE).sum())
     pr_area = int((pred == PROSTATE).sum())
     overlap = int(((gt == PROSTATE) & (pred == PROSTATE)).sum())
+    # Dice is undefined when the ground truth has no prostate
     d = "n/a" if gt_area == 0 else f"{(2 * overlap + EPS) / (gt_area + pr_area + EPS):.3f}"
 
     title = f"{stem} | prostate Dice {d} | GT area {gt_area}, pred area {pr_area}"
@@ -97,27 +127,53 @@ def plot_named_slice(model, dataset, name):
     print(f"Saved {path}")
 
 
+# --------------------------------------------------------------------------- #
+# Selecting slices to plot
+# --------------------------------------------------------------------------- #
+def pick_slices(records, k):
+    """Choose the slices worth plotting.
+
+    Args:
+        records: Per-slice dicts with keys idx, name, gt_area, pr_area, dice.
+        k: Number of slices to return per category.
+
+    Returns:
+        (lowest, wrong): the k lowest-Dice slices, and the k slices with the
+        most prostate predicted where the ground truth has none (largest first).
+    """
+    scored = sorted((r for r in records if r["dice"] is not None), key=lambda r: r["dice"])
+    wrong = sorted((r for r in records if r["gt_area"] == 0 and r["pr_area"] > 0),
+                   key=lambda r: -r["pr_area"])
+    return scored[:k], wrong[:k]
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
 def main():
+    """Evaluate the trained model on the test set and save example figures."""
     os.makedirs(OUT_DIR, exist_ok=True)
 
     test_set = HipMRIDataset(DATA_ROOT, "test")
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
 
     # ---- model ----
-    #model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
+    # model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
 
+    # Single-slice mode: plot one slice and exit
     if SLICE_NAME:
         plot_named_slice(model, test_set, SLICE_NAME)
         return
 
     # ---- inference ----
-    inter = torch.zeros(NUM_CLASSES)
-    p_area = torch.zeros(NUM_CLASSES)
-    t_area = torch.zeros(NUM_CLASSES)
-    records = []
+    # Running totals per class, accumulated over the whole test set
+    inter = torch.zeros(NUM_CLASSES)    # |pred AND target|
+    p_area = torch.zeros(NUM_CLASSES)   # |pred|
+    t_area = torch.zeros(NUM_CLASSES)   # |target|
+    records = []                        # per-slice prostate stats
     n_slices = 0
     total_time = 0.0
 
@@ -126,18 +182,19 @@ def main():
             images = images.to(device)
             target = masks.long().to(device)
 
+            # Time the forward pass only
             start = time.time()
             pred = model(images).argmax(dim=1)
             total_time += time.time() - start
 
+            # Accumulate per-class overlap statistics
             for c in range(NUM_CLASSES):
                 p, t = pred == c, target == c
                 inter[c] += (p & t).sum().item()
                 p_area[c] += p.sum().item()
                 t_area[c] += t.sum().item()
 
-
-            # per-slice prostate Dice (None when the slice has no GT prostate)
+            # Per-slice prostate Dice (None when the slice has no GT prostate)
             gt_p, pr_p = target == PROSTATE, pred == PROSTATE
             gt_areas = gt_p.flatten(1).sum(1).tolist()
             pr_areas = pr_p.flatten(1).sum(1).tolist()
