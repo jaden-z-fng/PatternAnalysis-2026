@@ -10,13 +10,14 @@ from torch.utils.data import DataLoader
 from modules import UNet2D, ImprovedUNet2D
 from dataset import HipMRIDataset
 
-WEIGHTS_PATH = "unet2d.pth"
-#WEIGHTS_PATH = "improved_unet2d.pth"
+# WEIGHTS_PATH = "unet2d.pth"
+WEIGHTS_PATH = "improved_unet2d.pth"
 OUT_DIR = "predictions"
-DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
-# DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
+# DATA_ROOT = "/home/jaden/COMP3710/keras_slices_data"
+DATA_ROOT = "/home/groups/comp3710/HipMRI_Study_open/keras_slices_data"
 NUM_CLASSES = 6
 PROSTATE = 5
+#SLICE_NAME = "case_042_week_0_slice_28"
 SLICE_NAME = None
 BATCH_SIZE = 16
 NUM_FIGURES = 3
@@ -103,8 +104,8 @@ def main():
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
 
     # ---- model ----
-    model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
-    # model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
+    #model = UNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
+    model = ImprovedUNet2D(n_channels=1, num_classes=NUM_CLASSES).to(device)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
     model.eval()
 
@@ -124,7 +125,6 @@ def main():
         for images, masks in test_loader:
             images = images.to(device)
             target = masks.long().to(device)
-            print(masks.shape, masks.dtype)
 
             start = time.time()
             pred = model(images).argmax(dim=1)
