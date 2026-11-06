@@ -189,6 +189,7 @@ The overall recommendation is to use the Improved 2D UNet, but potentially with 
 
 1. O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional networks for biomedical image segmentation,” in *Proc. MICCAI*, 2015, pp. 234–241.
 2. F. Isensee, P. Kickingereder, W. Wick, M. Bendszus, and K. H. Maier-Hein, “Brain tumor segmentation and radiomics survival prediction: Contribution to the BRATS 2017 challenge,” in *Brainlesion: Glioma, Multiple Sclerosis, Stroke and TBI Models*, 2018, pp. 287–297.
+3. krn0209. (n.d.). unet2d [Source code]. Kaggle. https://www.kaggle.com/code/krn0209/unet2d/notebook
 
 ---
 
